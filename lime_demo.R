@@ -50,7 +50,7 @@ data_15_16 <- select(data_15_16, -Happiness.Score) %>%
 
 # configure multicore
 cl <- makeCluster(detectCores())
-registerDoParallel(cl)
+# registerDoParallel(cl)
 
 set.seed(42)
 index <- createDataPartition(data_15_16$happiness_score_l,
@@ -66,7 +66,7 @@ model_mlp <- caret::train(happiness_score_l ~ .,
                                                    number = 10, 
                                                    repeats = 5, 
                                                    verboseIter = FALSE))
-
+stopCluster(cl)
 
 # 2 - LIME ----------------------------------------------------------------
 
@@ -100,7 +100,7 @@ pred <- data.frame(sample_id = 1:nrow(test_data),
                            type = "prob"),
                    actual = test_data$happiness_score_l)
 
-pred$prediction <- colnames(pred)[3:5][apply(pred[, 3:5], 
+pred$prediction <- colnames(pred)[2:4][apply(pred[, 2:4], 
                                              1, which.max)]
 
 pred$correct <- ifelse(pred$actual == pred$prediction, 
