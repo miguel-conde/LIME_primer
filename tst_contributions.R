@@ -69,6 +69,9 @@ probe_feature_weight %>% select(-case) %>% sapply(t.test) %>% t %>%
   select(feature, p.value, conf.int, estimate )
 
 
+
+
+
 # RF ----------------------------------------------------------------------
 
 rf_caret_fit <- caret::train(sepal_length ~ ., train_data,
@@ -118,11 +121,7 @@ rf_probe_feature_weight <- rf_probe %>%
   spread(feature, feature_weight) %>% 
   mutate(case = as.numeric(case)) %>% arrange(case)
 
-rf_probe_feature_weight <- rf_probe_feature_weight %>% 
-  mutate_at(vars(petal_length, petal_width, sepal_width),
-            funs(
-              . + . / (petal_length + petal_width + sepal_width) * model_intercept
-            ))
+
 
 # Contributions
 rf_probe_prediction <- rf_probe_feature_value[,-1] * rf_probe_feature_weight[,-1] 
@@ -131,14 +130,41 @@ rf_probe_prediction <- rf_probe_prediction %>%
 rf_probe_prediction <- rf_probe_feature_value[,1] %>% 
   bind_cols(rf_probe_prediction)
 
-rf_overall_contrib <- rf_probe_prediction %>% select(-case) %>% summarise_all(mean)
+# Contributions w/o intercept
+rf_probe_prediction_2 <- rf_probe_prediction %>% 
+  mutate(sum_vars = petal_length + petal_width + sepal_width) %>% 
+  mutate_at(vars(petal_length, petal_width, sepal_width),
+            funs(
+              . + . / sum_vars * model_intercept
+            )) %>% 
+  mutate(model_intercept = NULL,
+         sum_vars = NULL) 
+aux <- sum(predict(rf_caret_fit))
+aux_2 <- rf_probe_prediction_2 %>% summarise_if(is.numeric, sum)
+aux_fin <- as.numeric(aux / aux_2$y_hat)
+
+rf_probe_prediction_2 <- rf_probe_prediction_2 %>% 
+  # select(-case) %>%
+  # as.matrix %>%
+  mutate_if(is.numeric, function(x) aux_fin * x)
+
+rf_overall_contrib <- rf_probe_prediction_2 %>% select(-case) %>% summarise_all(mean)
 rf_overall_contrib / rf_overall_contrib$y_hat
 
-# Check with lm
-rf_probe_feature_weight %>% select(-case) %>% 
-  summarise_all(mean)
+# Coefs w/o intercept
+rf_probe_feature_weight_2 <- (rf_probe_prediction_2 %>% 
+                                select(-case, -y_hat)) /
+  (rf_probe_feature_value %>% 
+     select(-case, -model_intercept))
 
-rf_probe_feature_weight %>% select(-case) %>% sapply(t.test) %>% t %>% 
+# Check with lm
+rf_probe_feature_weight_2 %>% 
+  # select(-case) %>% 
+  summarise_if(is.numeric, mean)
+
+rf_probe_feature_weight_2 %>% 
+  # select(-case) %>% 
+  sapply(t.test) %>% t %>% 
   as.data.frame %>% 
   tibble::rownames_to_column(var = "feature") %>% 
   select(feature, p.value, conf.int, estimate )
@@ -146,5 +172,21 @@ rf_probe_feature_weight %>% select(-case) %>% sapply(t.test) %>% t %>%
 plot(train_data$sepal_length, predict(rf_caret_fit),
      xlim = c(0, 8), ylim = c(0, 8))
 abline(lm_fit)
-abline(a = 5.310096, b = 0.09219901, col = "blue") 
-abline(a = 0, b = 3.882815, col = "red")
+abline(a = 0, b = 1.901017, col = "blue") 
+
+
+####
+probe <- rf_probe_feature_value %>% 
+  select(-case, -model_intercept) %>% 
+  bind_cols(actual = train_data$sepal_length,
+            pred_lm = predict(lm_fit),
+            pred_rf = predict(rf_caret_fit),
+            pred_rf_2 = (rf_probe_feature_weight_2 * (rf_probe_feature_value %>%  
+                                                        select(-case, -model_intercept))) %>% 
+              apply(1, sum) )
+
+
+plot(probe$actual, probe$pred_lm,
+     xlim = c(0,8), ylim = c(0, 8))
+lines(probe$actual, probe$pred_rf, col = "blue", type = "p")
+lines(probe$actual, probe$pred_rf_2, col = "red", type = "p")
