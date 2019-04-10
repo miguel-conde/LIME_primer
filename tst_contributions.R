@@ -13,7 +13,8 @@ library(tidyverse)
 
 # ELimino species porque LIME parece tener problemas con los factores, habría
 # que convertirlos a dummies
-train_data <- iris %>% janitor::clean_names() %>% select(-species) %>% 
+train_data <- iris %>% janitor::clean_names() %>% 
+  select(-species) %>% 
   as_tibble()
 
 
@@ -93,11 +94,12 @@ probe_contrib <- probe_features_value[,-1] * probe_features_coefs[,-1]
 probe_contrib <- probe_contrib %>% 
   mutate(y_hat = rowSums(probe_contrib))
 probe_contrib <- probe_features_value[,1] %>% 
-  bind_cols(probe_contrib)
+  bind_cols(probe_contrib) %>% 
+  mutate(orig_pred = probe_0$orig_pred)
 probe_contrib
 
 overall_contrib <- probe_contrib %>% select(-case) %>% summarise_all(mean)
-overall_contrib / overall_contrib$y_hat
+overall_contrib / overall_contrib$orig_pred
 
 # Check with lm
 probe_features_coefs %>% select(-case) %>% 
@@ -112,7 +114,7 @@ probe_features_coefs %>% select(-case) %>% sapply(t.test) %>% t %>%
 
 
 
-# RF ----------------------------------------------------------------------
+# LIME FOR RF REGRESSION -------------------------------------------------
 
 rf_caret_fit <- caret::train(sepal_length ~ ., train_data,
                              method = "rf",
@@ -179,6 +181,8 @@ overall_contrib_rf / overall_contrib_rf$y_hat
 # COMENTARIOS
 # 1 - Los signos coinciden con los del modelo lineal
 # 2 - Aquí no tiene sentido la contribución de model_intercept
+# 3 - Las predicciones de los submodelos explicativos lineales no coinciden
+#     con las del modelo original rf
 #
 # La solución podría ser la de prophet: repartir proporcionalmente la 
 # contribución de model_intercept entre los otros predictores
@@ -186,14 +190,16 @@ overall_contrib_rf / overall_contrib_rf$y_hat
 features <- predictors(rf_caret_fit)
 
 new_probe_contrib_rf <- probe_contrib_rf %>% 
-  mutate(sum_predictors = rowSums(select(., features))) %>% 
+  mutate(sum_predictors = rowSums(select(., features)),
+         orig_pred = probe_0_rf$orig_pred) %>% 
+  # Reescalamos para que las aportaciones sumen la predicción del modelo
   mutate_at(vars(features),
-            funs(. / sum_predictors * y_hat )) %>% 
+            funs(. / sum_predictors * orig_pred )) %>% 
   select(-model_intercept, -sum_predictors)
 
 # Y, ahora si, los aportes serían:
 overall_contrib_rf <- new_probe_contrib_rf %>% select(-case) %>% summarise_all(mean)
-overall_contrib_rf / overall_contrib_rf$y_hat
+overall_contrib_rf / overall_contrib_rf$orig_pred
 
 # Comparemos con la importancia de variables
 varImp(rf_caret_fit, scale = F)
@@ -206,3 +212,24 @@ perc_contrib_rf <- (overall_contrib_rf / overall_contrib_rf$y_hat) %>%
   mutate(abs_y_hat = rowSums(select(., features)))
 
 perc_contrib_rf / perc_contrib_rf$abs_y_hat
+
+
+
+
+lime_contrib_rf <- get_lime_contributions(model_fit = rf_caret_fit,
+                                          train_data = train_data,
+                                          new_data = train_data %>%
+                                            select(-sepal_length), 
+                                          features = predictors(rf_caret_fit))
+
+lime_contrib_rf / lime_contrib_rf$orig_pred
+varImp(rf_caret_fit)
+
+lime_contrib_lm <- get_lime_contributions(model_fit = lm_caret_fit,
+                                          train_data = train_data,
+                                          new_data = train_data %>%
+                                            select(-sepal_length), 
+                                          features = predictors(lm_caret_fit))
+lime_contrib_lm / lime_contrib_lm$orig_pred
+varImp(lm_caret_fit)
+
