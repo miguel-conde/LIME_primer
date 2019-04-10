@@ -222,7 +222,7 @@ lime_contrib_rf <- get_lime_contributions(model_fit = rf_caret_fit,
                                             select(-sepal_length), 
                                           features = predictors(rf_caret_fit))
 
-lime_contrib_rf / lime_contrib_rf$orig_pred
+(lime_contrib_rf[,-1] / lime_contrib_rf$orig_pred) %>% summarise_all(mean)
 varImp(rf_caret_fit)
 
 lime_contrib_lm <- get_lime_contributions(model_fit = lm_caret_fit,
@@ -230,6 +230,6 @@ lime_contrib_lm <- get_lime_contributions(model_fit = lm_caret_fit,
                                           new_data = train_data %>%
                                             select(-sepal_length), 
                                           features = predictors(lm_caret_fit))
-lime_contrib_lm / lime_contrib_lm$orig_pred
+(lime_contrib_lm[,-1] / lime_contrib_lm$orig_pred) %>% summarise_all(mean)
 varImp(lm_caret_fit)
 

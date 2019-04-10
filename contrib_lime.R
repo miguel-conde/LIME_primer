@@ -56,8 +56,8 @@ get_lime_contributions <- function(model_fit,
     # Reescalamos para que las aportaciones sumen la predicción del modelo
     mutate_at(vars(features),
               funs(. / sum_predictors * orig_pred )) %>% 
-    select(-model_intercept, -sum_predictors)
+    select(-model_intercept, -sum_predictors, -y_hat)
   
-  return(new_probe_contrib %>% select(-y_hat))
+  return(new_probe_contrib)
   
 }
