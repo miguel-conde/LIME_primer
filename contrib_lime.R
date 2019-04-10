@@ -1,3 +1,12 @@
+# LIBRARIES and SOURCES ---------------------------------------------------
+ 
+library(lime)
+library(caret)
+library(janitor)
+library(tidyverse)
+
+
+# FUNCTIONS ---------------------------------------------------------------
 
 
 get_lime_contributions <- function(model_fit, 

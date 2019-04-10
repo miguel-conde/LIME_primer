@@ -214,7 +214,7 @@ perc_contrib_rf <- (overall_contrib_rf / overall_contrib_rf$y_hat) %>%
 perc_contrib_rf / perc_contrib_rf$abs_y_hat
 
 
-
+source("contrib_lime.R")
 
 lime_contrib_rf <- get_lime_contributions(model_fit = rf_caret_fit,
                                           train_data = train_data,
